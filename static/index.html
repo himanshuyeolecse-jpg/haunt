@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>haunt</title>
+<style>
+:root{--bone:#efe6d2;--accent:#ffb43c}
+body.ofrenda{--accent:#ff8a10}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#030207;color:var(--bone);font-family:Georgia,"Palatino Linotype",serif;overflow:hidden}
+#scene{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+header{position:fixed;top:0;left:0;right:0;display:flex;gap:12px;align-items:center;padding:14px 18px;pointer-events:none}
+header>*{pointer-events:auto}
+h1{font-size:22px;font-weight:normal;letter-spacing:.04em;margin:0 auto 0 0;font-style:italic;text-shadow:0 0 18px rgba(255,170,70,.45)}
+select,button,input{font:inherit;color:inherit}
+select,.btn{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.2);border-radius:999px;padding:7px 14px;cursor:pointer;backdrop-filter:blur(6px)}
+.btn:hover,select:hover{border-color:var(--accent)}
+.btn:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn[aria-pressed=true]{background:var(--accent);color:#1a0d08;border-color:var(--accent)}
+option{color:#000}
+#bubble{position:fixed;left:0;top:0;width:min(320px,86vw);background:rgba(239,230,210,.94);color:#241a33;padding:12px 16px;
+  border-radius:18px 18px 18px 4px;font-style:italic;line-height:1.45;font-size:17px;opacity:0;transition:opacity .3s;pointer-events:none;
+  box-shadow:0 0 30px rgba(255,180,90,.3)}
+#bubble.show{opacity:1}
+form{position:fixed;bottom:0;left:0;right:0;display:flex;justify-content:center;padding:0 16px 54px;pointer-events:none}
+input{pointer-events:auto;width:min(560px,100%);background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:13px 20px;font-size:17px;backdrop-filter:blur(6px)}
+#hint{position:fixed;bottom:34px;width:100%;text-align:center;font-size:13px;opacity:.55;pointer-events:none;padding:0 12px}
+#status{position:fixed;bottom:12px;width:100%;text-align:center;font-size:12px;opacity:.45;pointer-events:none;padding:0 12px}
+#loading{position:fixed;inset:0;display:grid;place-items:center;background:#030207;font-style:italic;font-size:20px;transition:opacity 1s;pointer-events:none}
+#loading.gone{opacity:0}
+
+/* ---------- intro page (swipe up) ---------- */
+#intro{position:fixed;inset:0;z-index:50;background:#2a0f55;overflow:hidden;touch-action:none;cursor:grab;
+  will-change:transform;transition:transform .4s cubic-bezier(.2,.8,.2,1)}
+#intro.dragging{transition:none;cursor:grabbing}
+#intro img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:46% 50%;
+  animation:breathe 14s ease-in-out infinite alternate;user-select:none;-webkit-user-drag:none;pointer-events:none}
+#intro.glitch img{filter:hue-rotate(35deg) saturate(1.5) brightness(1.25);transform:translateX(-5px) scale(1.06);animation:none}
+#intro::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(to top,rgba(20,6,45,.7),transparent 30%)}
+@keyframes breathe{to{transform:scale(1.045)}}
+.ember{position:absolute;bottom:-12px;width:5px;height:5px;border-radius:50%;background:#ffb43c;
+  box-shadow:0 0 10px 3px rgba(255,170,60,.7);opacity:0;animation:rise linear infinite;pointer-events:none;z-index:1}
+@keyframes rise{0%{transform:translate(0,0);opacity:0}12%{opacity:.9}100%{transform:translate(var(--dx),-105vh);opacity:0}}
+#swipe{position:absolute;left:50%;bottom:calc(26px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:2;
+  display:flex;flex-direction:column;align-items:center;gap:6px;background:rgba(20,6,45,.35);color:#fff;
+  border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:10px 22px 12px;font:inherit;font-style:italic;
+  letter-spacing:.06em;cursor:pointer;backdrop-filter:blur(6px)}
+#swipe:focus-visible{outline:2px solid #ffb43c;outline-offset:3px}
+#swipe .chev{width:13px;height:13px;border-left:2px solid #fff;border-top:2px solid #fff;transform:rotate(45deg);animation:nudge 1.6s ease-in-out infinite}
+@keyframes nudge{0%,100%{transform:translateY(3px) rotate(45deg);opacity:.45}50%{transform:translateY(-4px) rotate(45deg);opacity:1}}
+#blink{position:fixed;inset:0;z-index:60;background:#000;opacity:0;pointer-events:none;display:grid;place-items:center;overflow:hidden}
+#blink svg{width:min(62vmin,440px);opacity:0;transform:scale(.3);filter:drop-shadow(0 0 28px #cfeaff) blur(1.5px)}
+@media(prefers-reduced-motion:reduce){#intro img,.ember,#swipe .chev{animation:none}}
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<header>
+  <h1>haunt</h1>
+  <span id="hauntNext" aria-live="off"></span>
+  <button class="btn" id="musicBtn" aria-pressed="true" title="Mute or unmute the background music">Music: on</button>
+  <button class="btn" id="hauntSnd" aria-pressed="true" title="Mute or unmute the haunting sounds">Sound: on</button>
+  <button class="btn" id="hauntBtn" aria-pressed="false" title="Halloween mode only. Esc leaves any haunting instantly.">Haunting: off</button>
+  <button class="btn" id="modeBtn" aria-pressed="false" title="Switch to the ofrenda">Ofrenda mode</button>
+  <select id="models" aria-label="Local model"></select>
+</header>
+<div id="bubble" role="status" aria-live="polite"></div>
+<form id="f" autocomplete="off"><input id="in" placeholder="Whisper to the ghost…" aria-label="Message to the ghost" maxlength="300"></form>
+<div id="hint">Steer: WASD or arrow keys, or click the water · Shift to hurry · brush or click the lantern · click the ghost</div>
+<div id="status"></div>
+<div id="loading">the ghost is gathering…</div>
+<section id="intro" aria-label="Welcome">
+  <img src="intro.jpg" alt="A friendly ghost in a witch hat hugging a glowing pumpkin, with a haunted house sign, a graveyard and a gnarled tree">
+  <button id="swipe" type="button" aria-label="Swipe up, or press to wake the ghost"><span class="chev"></span><span>swipe up</span></button>
+</section>
+<div id="blink" aria-hidden="true">
+  <svg viewBox="0 0 200 240"><path d="M20 110C20 40 60 10 100 10C140 10 180 40 180 110L180 215C170 200 160 200 150 215C140 230 130 230 120 215C110 200 100 200 90 215C80 230 70 230 60 215C50 200 40 200 30 215L20 215Z" fill="#f4f8ff"/>
+  <ellipse cx="70" cy="95" rx="14" ry="19" fill="#14102a"/><ellipse cx="130" cy="95" rx="14" ry="19" fill="#14102a"/><ellipse cx="100" cy="150" rx="10" ry="8" fill="#14102a"/></svg>
+</div>
+<script>
+(() => {
+  const intro = document.getElementById('intro'), blink = document.getElementById('blink');
+  const ghostSvg = blink.querySelector('svg'), swipeBtn = document.getElementById('swipe');
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let state = 'idle', y0 = null, dy = 0;
+
+  for (let i = 0; i < 16; i++) {
+    const e = document.createElement('i'); e.className = 'ember';
+    e.style.left = Math.random() * 100 + '%';
+    e.style.setProperty('--dx', (Math.random() * 120 - 60) + 'px');
+    e.style.animationDuration = (7 + Math.random() * 8) + 's';
+    e.style.animationDelay = (-Math.random() * 12) + 's';
+    intro.appendChild(e);
+  }
+  // warm the cache while the intro is on screen so the scene opens quickly
+  addEventListener('load', () => setTimeout(() => ['ghost.json', 'ghost.bin', 'tex_color.jpg', 'tex_orm.jpg', 'tex_normal.jpg', 'app.js']
+    .forEach(u => fetch(u).catch(() => {})), 500));
+
+  function loadApp() { const s = document.createElement('script'); s.src = 'app.js'; document.body.appendChild(s); }
+  const set = (op, scale, gop) => { blink.style.opacity = op; ghostSvg.style.opacity = gop; ghostSvg.style.transform = 'scale(' + scale + ')'; };
+  const ready = () => new Promise(res => {
+    const t0 = performance.now();
+    (function poll() { const l = document.getElementById('loading');
+      if (!l || l.classList.contains('gone') || performance.now() - t0 > 9000) res(); else setTimeout(poll, 120); })();
+  });
+  function reveal() {
+    blink.style.transition = 'opacity .9s ease'; blink.style.opacity = 0; ghostSvg.style.opacity = 0;
+    setTimeout(() => { blink.remove(); }, 1000);
+  }
+  function finish() { intro.remove(); }
+
+  function start() {
+    if (state !== 'idle') return; state = 'playing';
+    intro.classList.remove('dragging'); intro.style.transform = '';
+    loadApp();
+    if (window.__music) window.__music.start();     // the swipe is the gesture the browser needs to allow music
+    if (reduce) {
+      blink.style.transition = 'opacity .5s'; set(1, 1, 0);
+      setTimeout(() => { finish(); ready().then(reveal); }, 550); return;
+    }
+    // dark dips at 100, 420, 900, 1250 ms: never more than three per second, and only dips to black, no bright flashes.
+    const steps = [
+      [100, 1, .3, .35, 1], [190, 0, .3, 0, 1],
+      [420, 1, .55, .5, 1], [520, 0, .55, 0, 1],
+      [900, 1, .95, .6, 1], [980, 0, .95, 0, 1],
+      [1250, 1, 1.5, .8, 0],
+      [1700, 1, 3, 0, 0],
+    ];
+    blink.style.transition = 'none';
+    steps.forEach(([t, op, sc, go, g]) => setTimeout(() => {
+      set(op, sc, go); intro.classList.toggle('glitch', !!g && op === 0);
+      if (t === 1250) finish();
+    }, t));
+    setTimeout(() => ready().then(reveal), 1850);
+  }
+
+  intro.addEventListener('pointerdown', e => { if (state !== 'idle') return; y0 = e.clientY; dy = 0; intro.classList.add('dragging'); });
+  addEventListener('pointermove', e => { if (y0 === null) return; dy = Math.min(0, e.clientY - y0); intro.style.transform = 'translateY(' + dy * 0.5 + 'px)'; });
+  const end = () => { if (y0 === null) return; const d = dy; y0 = null; intro.classList.remove('dragging'); if (d < -70) start(); else intro.style.transform = ''; };
+  addEventListener('pointerup', end); addEventListener('pointercancel', end);
+  intro.addEventListener('wheel', e => { if (e.deltaY > 25) start(); }, { passive: true });
+  swipeBtn.addEventListener('click', start);
+  addEventListener('keydown', e => { if (state === 'idle' && ['ArrowUp', 'ArrowDown', 'Enter', ' '].includes(e.key)) { e.preventDefault(); start(); } });
+})();
+</script>
+
+<script src="music.js"></script>
+<script src="haunting.js"></script>
+</body>
+</html>
